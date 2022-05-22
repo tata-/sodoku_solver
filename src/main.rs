@@ -5,5 +5,5 @@ use crate::model::model::Grid;
 fn main() {
     println!("Hello, world!");
 
-    let g = Grid::new();
+    let _g = Grid::new("");
 }
