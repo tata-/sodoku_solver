@@ -65,7 +65,7 @@ pub mod model {
 
             if value > 0 && value < 10 {
                 o = Some(value);
-                pos[value] = true;
+                pos[value-1] = true;
             }
 
             Place {
@@ -114,12 +114,6 @@ pub mod model {
                 .finish()
         }
     }
-
-    // impl Clone for Place {
-    //     fn clone(&self) -> Self {
-    //         Place { value: self.value.clone(), possible: &self.possible.to_owned()}
-    //     }
-    // }
 
     impl Grid {
         pub fn new(value_str: &str) -> Grid {
@@ -256,7 +250,7 @@ mod tests {
         for p in grid.places.iter() {
             match p.get().value {
                 None => assert_eq!(p.get().possible.len(), 9),
-                Some(_) => assert_eq!(p.get().possible.len(), 0),
+                Some(_) => assert_eq!(p.get().count_possibles(), 1),
             }
         }
     }
