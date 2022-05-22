@@ -1,11 +1,7 @@
 pub mod model {
 
-    use std::borrow::Borrow;
     use std::cell::Cell;
-    use std::collections::{LinkedList, VecDeque};
     use std::fmt::{Debug, Formatter};
-    use std::fs::read_to_string;
-    use std::rc::Rc;
 
     #[derive(Copy, Clone)]
     pub struct Place {
@@ -40,7 +36,7 @@ pub mod model {
 
         pub fn pretty(&self) {
             for p in self.places.iter() {
-                &p.get().pretty();
+                p.get().pretty();
             }
             println!("|");
         }
@@ -66,6 +62,8 @@ pub mod model {
             if value > 0 && value < 10 {
                 o = Some(value);
                 pos[value-1] = true;
+            } else {
+                pos = [true; 9];
             }
 
             Place {
@@ -137,7 +135,7 @@ pub mod model {
             let mut index = 0;
             for s in values {
                 let i = s.parse::<usize>().unwrap();
-                let mut place = Place::new(i);
+                let place = Place::new(i);
 
                 let x = index % 9;
                 let y = index / 9;
@@ -169,7 +167,7 @@ pub mod model {
         }
 
         pub fn solve(&mut self) {
-            for mut p in self.places.iter_mut() {
+            for p in self.places.iter_mut() {
                 if p.get().count_possibles() == 1 {
                     p.get_mut().set_from_possibles();
                 }
@@ -235,8 +233,7 @@ mod tests {
     fn test_first_item() {
         let g = Grid::new(&generate_empty_line());
         let p = g.places.get(0).unwrap();
-        //assert_eq!(*p, *g.rows.get(0).unwrap().places.get(0).unwrap());
-        //assert_ne!(*p, *g.rows.get(0).unwrap().places.get(1).unwrap());
+        p.get().pretty();
     }
 
     #[test]
@@ -249,7 +246,7 @@ mod tests {
 
         for p in grid.places.iter() {
             match p.get().value {
-                None => assert_eq!(p.get().possible.len(), 9),
+                None => assert_eq!(p.get().count_possibles(), 9),
                 Some(_) => assert_eq!(p.get().count_possibles(), 1),
             }
         }
