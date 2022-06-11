@@ -1,7 +1,11 @@
 pub mod model {
-
     use std::cell::Cell;
     use std::fmt::{Debug, Formatter};
+    use std::ops::Add;
+    use std::slice::{Iter, IterMut};
+    use std::sync::{Arc, Mutex};
+
+    use array_init::array_init;
 
     #[derive(Copy, Clone)]
     pub struct Place {
@@ -10,46 +14,35 @@ pub mod model {
     }
 
     pub struct Line {
-        pub places: Vec<Cell<Place>>,
-    }
-
-    pub struct Block {
-        pub places: Vec<Cell<Place>>,
+        pub places: [Arc<Mutex<Place>>; 9],
+        initialized: usize,
     }
 
     pub struct Grid {
-        pub places: Vec<Cell<Place>>,
-        pub rows: Vec<Line>,
+        pub places: Vec<Arc<Mutex<Place>>>,
+        pub rows: [Line; 9],
         pub columns: Vec<Line>,
-        pub blocks: Vec<Block>,
+        pub blocks: Vec<Line>,
     }
 
     impl Line {
         pub fn new() -> Line {
-            let places = Vec::new();
-            Line { places }
+            let places = array_init(|_i| Arc::new(Mutex::new(Place::new(0))));
+            Line { places: places, initialized: 0 }
         }
 
-        pub fn add_place(&mut self, p: Cell<Place>) {
-            self.places.push(p);
+        pub fn add_place(&mut self, p: Arc<Mutex<Place>>) {
+            self.places[self.initialized] = p;
+            self.initialized += 1;
         }
 
-        pub fn pretty(&self) {
+        pub fn pretty(&self) -> String {
+            let mut s = "".to_owned();
             for p in self.places.iter() {
-                p.get().pretty();
+                s = s.add(&p.lock().unwrap().pretty());
             }
-            println!("|");
-        }
-    }
-
-    impl Block {
-        pub fn new() -> Block {
-            let places = Vec::new();
-            Block { places }
-        }
-
-        pub fn add_place(&mut self, p: Cell<Place>) {
-            self.places.push(p);
+            s = s.add("|").add("\n");
+            return s;
         }
     }
 
@@ -61,7 +54,7 @@ pub mod model {
 
             if value > 0 && value < 10 {
                 o = Some(value);
-                pos[value-1] = true;
+                pos[value - 1] = true;
             } else {
                 pos = [true; 9];
             }
@@ -72,12 +65,13 @@ pub mod model {
             }
         }
 
-        pub fn pretty(&self) {
-            print!("|");
+        pub fn pretty(&self) -> String {
+            let mut str = "|".to_owned();
             match self.value {
-                None => print!(" "),
-                Some(v) => print!("{}", v),
+                None => str = str + " ",
+                Some(v) => str = str + &v.to_string(),
             }
+            return str;
         }
 
         pub fn count_possibles(&self) -> usize {
@@ -92,16 +86,36 @@ pub mod model {
 
         pub fn set_from_possibles(&mut self) {
             let mut i = 1;
+
+            println!("Possibles are {:?}", self.possible);
+
             for b in self.possible {
                 if b {
+                    println!("Value found it is {}", i);
                     if self.value == None {
                         self.value = Some(i);
+                        println!("Value set as {:?}", self.value);
                     } else {
                         panic!("Value is already set");
                     }
                 }
                 i += 1;
             }
+        }
+
+        pub fn update(&mut self, found: Iter<usize>) -> bool {
+            if self.value != None {
+                return false;
+            }
+            let mut ret = false;
+            for &index in found {
+                if self.possible[index - 1] {
+                    ret = true;
+                    self.possible[index - 1] = false;
+                }
+            }
+            println!("    possibles are {:?}", self.possible);
+            return ret;
         }
     }
 
@@ -122,14 +136,14 @@ pub mod model {
             }
 
             let mut places = Vec::new();
-            let mut rows = Vec::new();
+            let mut rows: [Line; 9] = array_init(|_| Line::new());
             let mut columns = Vec::new();
             let mut blocks = Vec::new();
 
             for _x in 0..9 {
-                rows.push(Line::new());
+                // rows.push(Line::new());
                 columns.push(Line::new());
-                blocks.push(Block::new());
+                blocks.push(Line::new());
             }
 
             let mut index = 0;
@@ -140,13 +154,17 @@ pub mod model {
                 let x = index % 9;
                 let y = index / 9;
                 let b = Grid::block_index(index);
+                let arc = Arc::new(Mutex::new(place));
 
-                rows.get_mut(y).unwrap().add_place(Cell::new(place));
-                columns.get_mut(x).unwrap().add_place(Cell::new(place));
-                blocks.get_mut(b).unwrap().add_place(Cell::new(place));
-                places.push(Cell::new(place));
+                Cell::new(place);
+                //rows.get_mut(y).unwrap().add_place(Cell::new(place));
+                columns.get_mut(x).unwrap().add_place(Arc::clone(&arc));
+                blocks.get_mut(b).unwrap().add_place(Arc::clone(&arc));
+                places.push(Arc::clone(&arc));
+                rows[y].places[x] = arc;
                 index += 1;
             }
+
 
             Grid {
                 places,
@@ -160,16 +178,66 @@ pub mod model {
             return (index % 9) / 3 + 3 * (index / 27);
         }
 
-        pub fn pretty(&self) {
+        pub fn pretty(&self) -> String {
+            let mut s = "".to_owned();
             for row in self.rows.iter() {
-                row.pretty();
+                let rs = row.pretty();
+                s = s.add(&rs)
             }
+            print!("Grid pretty is: \n{}", s);
+            return s;
         }
 
         pub fn solve(&mut self) {
-            for p in self.places.iter_mut() {
-                if p.get().count_possibles() == 1 {
-                    p.get_mut().set_from_possibles();
+
+            //let mut solved = false;
+            let mut update = true;
+
+            while update {
+                self.check_places();
+                update_line(self.rows.iter_mut());
+                print!("Rows updated");
+                update_line(self.columns.iter_mut());
+                print!("Columns updated");
+                update_line(self.blocks.iter_mut());
+                print!("blocks updated");
+                update = self.check_places();
+            }
+        }
+
+        fn check_places(&mut self) -> bool {
+            let mut ret = false;
+
+            for arc in self.places.iter_mut() {
+                let mut p = arc.lock().unwrap();
+                if p.value == None && p.count_possibles() == 1 {
+                    p.set_from_possibles();
+                    ret = true;
+                }
+            }
+            return ret;
+        }
+    }
+
+    fn update_line(iter: IterMut<'_, Line>) {
+        for l in iter {
+            print!("Line -->>");
+            l.pretty();
+
+            let mut found = Vec::new();
+
+            for p in l.places.iter() {
+                if p.lock().unwrap().value != None {
+                    found.push(p.lock().unwrap().value.unwrap());
+                }
+            }
+
+            println!("Found items {:?}", found);
+
+            for arc in l.places.iter_mut() {
+                let mut p = arc.lock().unwrap();
+                if p.value == None {
+                    p.update(found.iter());
                 }
             }
         }
@@ -178,8 +246,11 @@ pub mod model {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::model::Grid;
     use std::borrow::Borrow;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use crate::model::model::{Grid, Place};
 
     #[test]
     fn dummy_test() {
@@ -232,24 +303,71 @@ mod tests {
     #[test]
     fn test_first_item() {
         let g = Grid::new(&generate_empty_line());
-        let p = g.places.get(0).unwrap();
-        p.get().pretty();
+        let arc = g.places.get(0).unwrap();
+        arc.lock().unwrap().pretty();
     }
 
     #[test]
     fn test_with_easy() {
-        let grid = Grid::new(&generate_4338937849());
-        let p = grid.places.get(0).unwrap();
+        print!("test with easy");
+        let mut grid = Grid::new(&generate_4338937849());
+        let result = solve_grid(&mut grid);
 
-        assert_eq!(p.get().value.unwrap(), 1);
+        let expected = "|1|5|2|9|7|6|8|4|3|\n\
+                            |4|6|9|3|5|8|7|2|1|\n\
+                            |3|7|8|4|1|2|6|9|5|\n\
+                            |7|2|5|8|9|1|4|3|6|\n\
+                            |9|3|1|7|6|4|2|5|8|\n\
+                            |8|4|6|2|3|5|1|7|9|\n\
+                            |2|1|4|5|8|3|9|6|7|\n\
+                            |5|8|7|6|2|9|3|1|4|\n\
+                            |6|9|3|1|4|7|5|8|2|\n";
+
+        assert_eq!(result, expected);
+
+    }
+
+    #[test]
+    fn test_with_medium() {
+        print!("test with medium: https://www.websudoku.com/?level=2&set_id=6652955940");
+        let mut grid = Grid::new(&generate_6652955940());
+        let result = solve_grid(&mut grid);
+
+        let expected = "|1|5|2|9|7|6|8|4|3|\n\
+                            |4|6|9|3|5|8|7|2|1|\n\
+                            |3|7|8|4|1|2|6|9|5|\n\
+                            |7|2|5|8|9|1|4|3|6|\n\
+                            |9|3|1|7|6|4|2|5|8|\n\
+                            |8|4|6|2|3|5|1|7|9|\n\
+                            |2|1|4|5|8|3|9|6|7|\n\
+                            |5|8|7|6|2|9|3|1|4|\n\
+                            |6|9|3|1|4|7|5|8|2|\n";
+
+        assert_eq!(result, expected);
+
+    }
+
+    fn solve_grid(grid: &mut Grid) -> String {
+        print!("Grid was generated");
+        // let p = grid.places.get(0).unwrap();
         grid.pretty();
 
-        for p in grid.places.iter() {
-            match p.get().value {
-                None => assert_eq!(p.get().count_possibles(), 9),
-                Some(_) => assert_eq!(p.get().count_possibles(), 1),
+        for arc in grid.places.iter() {
+            let p = arc.lock().unwrap();
+            match p.value {
+                None => assert_eq!(p.count_possibles(), 9),
+                Some(_) => assert_eq!(p.count_possibles(), 1),
             }
         }
+
+        grid.solve();
+
+        let result = grid.pretty();
+
+        for arc in grid.places.iter() {
+            assert_ne!(arc.lock().unwrap().value, None);
+        }
+        result
     }
 
     #[test]
@@ -260,6 +378,7 @@ mod tests {
             println!("{}", i);
         }
     }
+
     #[test]
     fn test_block_indexing() {
         assert_eq!(Grid::block_index(0), 0);
@@ -276,13 +395,55 @@ mod tests {
         assert_eq!(Grid::block_index(80), 8);
     }
 
+    #[test]
+    fn test_cell() {
+        let p = Place::new(0);
+        let c1 = Arc::new(Mutex::new(p));
+        let c2 = Arc::clone(&c1);
+
+        let mut v = Vec::new();
+        for i in 1..5 {
+            v.push(i);
+        }
+
+        for i in 6..10 {
+            v.push(i);
+        }
+
+        println!("Vector is {:?}", v);
+
+
+        c1.lock().unwrap().update(v.iter());
+        c1.lock().unwrap().set_from_possibles();
+
+
+        assert_eq!(c1.lock().unwrap().value, Some(5), "First ref not updated");
+        assert_eq!(c2.lock().unwrap().value, Some(5), "Second ref not updated");
+    }
+
     fn generate_empty_line() -> String {
         let zero_fn = || return 0;
         return generate_line(zero_fn);
     }
 
+    fn generate_6652955940() -> String {
+        let s= "\
+        0,6,0,7,9,0,3,4,0,\
+        0,0,0,1,0,0,8,9,0,\
+		0,0,3,6,0,0,1,7,0,\
+		0,0,0,0,0,1,0,0,0,\
+		7,0,5,0,0,0,6,0,3,\
+		0,0,0,2,0,0,0,0,0,\
+		0,5,9,0,0,6,2,0,0,\
+		0,7,6,0,0,4,0,0,0,\
+		0,4,8,0,3,2,0,6,0".to_string();
+        return s;
+
+    }
+
     fn generate_4338937849() -> String {
-        let s = "1,5,2,0,0,6,8,0,0,\
+        let s = "\
+                     1,5,2,0,0,6,8,0,0,\
                      0,6,9,0,0,0,0,0,0,\
                      3,7,0,0,1,2,0,9,0,\
                      7,2,0,0,0,1,4,0,0,\

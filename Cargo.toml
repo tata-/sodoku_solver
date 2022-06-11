@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 tinyset = "0.4.10"
+array-init = "2.0.0"
