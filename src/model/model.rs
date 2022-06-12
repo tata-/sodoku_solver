@@ -190,32 +190,94 @@ pub mod model {
 
         pub fn solve(&mut self) {
 
-            //let mut solved = false;
+            let mut solved = false;
             let mut update = true;
-
-            while update {
-                self.check_places();
-                update_line(self.rows.iter_mut());
-                print!("Rows updated");
-                update_line(self.columns.iter_mut());
-                print!("Columns updated");
-                update_line(self.blocks.iter_mut());
-                print!("blocks updated");
-                update = self.check_places();
+            let mut cycles = 0;
+            while !solved {
+                while update {
+                    self.check_places();
+                    update_line(self.rows.iter_mut());
+                    print!("Rows updated");
+                    update_line(self.columns.iter_mut());
+                    print!("Columns updated");
+                    update_line(self.blocks.iter_mut());
+                    print!("blocks updated");
+                    let pair = self.check_places();
+                    update = pair.0;
+                    solved = pair.1;
+                }
+                if !solved {
+                    check_only_possible(self.rows.iter_mut());
+                    check_only_possible(self.columns.iter_mut());
+                    check_only_possible(self.blocks.iter_mut());
+                    update = true;
+                }
+                cycles +=1;
+                if cycles > 5 {
+                    solved = true;
+                }
             }
         }
 
-        fn check_places(&mut self) -> bool {
-            let mut ret = false;
+
+
+        fn check_places(&mut self) -> (bool, bool) {
+            let mut updated = false;
+            let mut solved = true;
 
             for arc in self.places.iter_mut() {
                 let mut p = arc.lock().unwrap();
-                if p.value == None && p.count_possibles() == 1 {
-                    p.set_from_possibles();
-                    ret = true;
+                if p.value == None {
+                    solved = false;
+                    if p.count_possibles() == 1 {
+                        p.set_from_possibles();
+                        updated = true;
+                    }
                 }
             }
-            return ret;
+            return (updated, solved);
+        }
+    }
+
+    fn check_only_possible(lines: IterMut<Line>) {
+
+        for line in lines{
+
+            let mut numbers : [usize; 9] = [0;9];
+
+            for arc in line.places.iter(){
+                let place  = arc.lock().unwrap();
+
+                match place.value {
+                    Some(i) => numbers[i-1] = 5,
+                    None => {
+                        for index in 0..8{
+                            if place.possible[index] {
+                                numbers[index] +=1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            for index in 0..8 {
+
+                if numbers[index] == 1 {
+                    println!("Found one which is the only possible {}", index+1);
+
+                    for arc in line.places.iter(){
+                        let mut place = arc.lock().unwrap();
+                        if place.possible[index] {
+                            place.possible = [false;9];
+                            place.possible[index] = true;
+                            place.set_from_possibles();
+                        }
+                    }
+
+                }
+
+            }
+
         }
     }
 
@@ -333,15 +395,16 @@ mod tests {
         let mut grid = Grid::new(&generate_6652955940());
         let result = solve_grid(&mut grid);
 
-        let expected = "|1|5|2|9|7|6|8|4|3|\n\
-                            |4|6|9|3|5|8|7|2|1|\n\
-                            |3|7|8|4|1|2|6|9|5|\n\
-                            |7|2|5|8|9|1|4|3|6|\n\
-                            |9|3|1|7|6|4|2|5|8|\n\
-                            |8|4|6|2|3|5|1|7|9|\n\
-                            |2|1|4|5|8|3|9|6|7|\n\
-                            |5|8|7|6|2|9|3|1|4|\n\
-                            |6|9|3|1|4|7|5|8|2|\n";
+        let expected =
+                       "|8|6|1|7|9|5|3|4|2|\n\
+                        |5|2|7|1|4|3|8|9|6|\n\
+                        |4|9|3|6|2|8|1|7|5|\n\
+                        |9|8|2|3|6|1|4|5|7|\n\
+                        |7|1|5|4|8|9|6|2|3|\n\
+                        |6|3|4|2|5|7|9|8|1|\n\
+                        |3|5|9|8|7|6|2|1|4|\n\
+                        |2|7|6|9|1|4|5|3|8|\n\
+                        |1|4|8|5|3|2|7|6|9|\n";
 
         assert_eq!(result, expected);
 
