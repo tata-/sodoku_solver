@@ -213,7 +213,7 @@ pub mod model {
                     update = true;
                 }
                 cycles +=1;
-                if cycles > 5 {
+                if cycles > 25 {
                     solved = true;
                 }
             }
@@ -410,6 +410,49 @@ mod tests {
 
     }
 
+    #[test]
+    fn test_with_hard() {
+        print!("test with hard: https://www.websudoku.com/?level=3&set_id=8346528215");
+        let mut grid = Grid::new(&generate_8346528215());
+        let result = solve_grid(&mut grid);
+
+        let expected =
+               "|8|5|2|4|9|7|6|1|3|\n\
+                |9|1|7|6|5|3|2|8|4|\n\
+                |6|3|4|1|2|8|9|7|5|\n\
+                |1|9|3|8|6|5|7|4|2|\n\
+                |7|4|5|2|1|9|3|6|8|\n\
+                |2|6|8|3|7|4|1|5|9|\n\
+                |3|2|6|5|4|1|8|9|7|\n\
+                |5|7|1|9|8|2|4|3|6|\n\
+                |4|8|9|7|3|6|5|2|1|\n";
+
+        assert_eq!(result, expected);
+
+    }
+
+    #[test]
+    fn test_with_imposible() {
+        print!("test with hard: https://www.websudoku.com/?level=4&set_id=3495689592");
+        let mut grid = Grid::new(&generate_3495689592());
+        let result = solve_grid(&mut grid);
+
+        let expected =
+            "|8|5|2|4|9|7|6|1|3|\n\
+                |9|1|7|6|5|3|2|8|4|\n\
+                |6|3|4|1|2|8|9|7|5|\n\
+                |1|9|3|8|6|5|7|4|2|\n\
+                |7|4|5|2|1|9|3|6|8|\n\
+                |2|6|8|3|7|4|1|5|9|\n\
+                |3|2|6|5|4|1|8|9|7|\n\
+                |5|7|1|9|8|2|4|3|6|\n\
+                |4|8|9|7|3|6|5|2|1|\n";
+
+        assert_eq!(result, expected);
+
+    }
+
+
     fn solve_grid(grid: &mut Grid) -> String {
         print!("Grid was generated");
         // let p = grid.places.get(0).unwrap();
@@ -518,6 +561,37 @@ mod tests {
             .to_string();
         return s;
     }
+
+    fn generate_8346528215() -> String {
+        let s = "\
+                     8,0,0,0,0,0,0,0,0,\
+                     9,0,7,0,0,3,0,0,4,\
+                     0,3,4,0,2,0,0,7,5,\
+                     0,0,0,8,6,0,0,4,0,\
+                     0,0,0,2,0,9,0,0,0,\
+                     0,6,0,0,7,4,0,0,0,\
+                     3,2,0,0,4,0,8,9,0,\
+                     5,0,0,9,0,0,4,0,6,\
+                     0,0,0,0,0,0,0,0,1"
+            .to_string();
+        return s;
+    }
+
+    fn generate_3495689592() -> String {
+        let s = "\
+                     0,0,5,0,8,0,0,0,0,\
+                     0,0,1,4,0,0,0,0,0,\
+                     7,2,4,0,0,1,0,0,0,\
+                     0,9,0,6,0,0,0,7,0,\
+                     0,3,0,0,7,0,0,9,0,\
+                     0,4,0,0,0,3,0,2,0,\
+                     0,0,0,5,0,0,8,4,2,\
+                     0,0,0,0,0,8,6,0,0,\
+                     0,0,0,0,2,0,9,0,0"
+            .to_string();
+        return s;
+    }
+
 
     fn generate_line(f: fn() -> i32) -> String {
         let mut ret_val = String::new();
