@@ -1,3 +1,6 @@
+[env]
+
+
 [package]
 name = "sudoku_solver"
 version = "0.1.0"
@@ -8,5 +11,15 @@ edition = "2018"
 [dependencies]
 tinyset = "0.4.10"
 array-init = "2.0.0"
+
+#ui
 egui = "0.17.0"
 eframe = "0.17.0"
+
+#opencv
+#opencv = { version = "0.65.0", features = ["buildtime-bindgen"]  }
+opencv = { version = "0.65.0"  }
+
+
+[build]
+target = "x86_64-pc-windows-msvc"
